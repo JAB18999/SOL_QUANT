@@ -3,12 +3,19 @@ name: Download SOL Data
 on:
   workflow_dispatch: # Allows manual trigger from the "Actions" tab
 
+# 必须添加权限配置，否则 push 会报错 403
+permissions:
+  contents: write
+
 jobs:
   download_data:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          # 使用 fetch-depth: 0 确保获取完整历史，防止 push 失败
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -23,9 +30,27 @@ jobs:
       - name: Run Download Script
         run: python download_sol_data.py
 
+      - name: Commit and Push Changes
+        run: |
+          # 配置 Git 用户信息
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 添加 data 目录
+          git add data/
+          
+          # 检查是否有文件变更，如果没有变更则跳过 commit 防止报错
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            # [skip ci] 是为了防止某些配置下产生无限循环触发
+            git commit -m "Auto-update SOL market data [skip ci]"
+            git push
+          fi
+
       - name: Upload Data Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: sol-market-data
           path: data/
-          retention-days: 3
+          retention-days: 7
